@@ -36,9 +36,10 @@
 "        max-height: calc(100% - 2px);\r\n" \
 "\r\n" \
 "        .main-content {\r\n" \
-"          padding: 1rem;\r\n" \
-"          width: 100%;\r\n" \
-"          height: 100%;\r\n" \
+"          position: relative;\r\n" \
+"          margin: 1rem;\r\n" \
+"          width: stretch;\r\n" \
+"          height: stretch;\r\n" \
 "        }\r\n" \
 "      }\r\n" \
 "    </style>\r\n" \
@@ -47,13 +48,15 @@
 "  <body>\r\n" \
 "    <main>\r\n" \
 "      <div class=\"main-content\">\r\n" \
-"        At first, there was nothing ...\r\n" \
+"        <div style=\"position:absolute;bottom:0px;\">\r\n" \
+"          At first, there was nothing ...\r\n" \
+"        </div>\r\n" \
 "      </div>\r\n" \
 "    </main>\r\n" \
 "  </body>\r\n" \
 "</html>\r\n"
 
-static int client_http_respond_to_request(Client *c) {
+static int request_http_respond_to_request(Request *c) {
 
   char path[31] = {0};
   size_t cookie = 0;
@@ -81,7 +84,7 @@ static int client_http_respond_to_request(Client *c) {
 
   printf("cookie = \"%lu\"\n", cookie);
 
-  c->phase = ClientPhase_HttpResponding;
+  c->phase = RequestPhase_HttpResponding;
 
   if (strcmp(path, "/") == 0) {
     FILE *tmp = open_memstream(&c->res.buf, &c->res.buf_len);
@@ -115,14 +118,14 @@ static int client_http_respond_to_request(Client *c) {
   return 0;
 }
 
-static ClientStepResult client_http_read_request(Client *c) {
+static RequestStepResult request_http_read_request(Request *c) {
   for (;;) {
     char byte;
     ssize_t read_ret = read(c->net_fd, &byte, 1);
     if (read_ret < 1) {
       if (errno != EWOULDBLOCK && errno != EAGAIN) {
-        perror("client read()");
-        return ClientStepResult_Error;
+        perror("request read()");
+        return RequestStepResult_Error;
       }
       break;
     }
@@ -131,16 +134,16 @@ static ClientStepResult client_http_read_request(Client *c) {
     c->http_req.bytes_read++;
 
     if (c->http_req.bytes_read > MAX_MESSAGE_SIZE)
-      return ClientStepResult_Error;
+      return RequestStepResult_Error;
 
     /* ignore carriage return */
     if (byte != 0x0D) {
       /* track line feeds */
       if (byte == 0x0A) {
         if (c->http_req.seen_linefeed) {
-          if (client_http_respond_to_request(c) < 0)
-            return ClientStepResult_Error;
-          return ClientStepResult_Restart;
+          if (request_http_respond_to_request(c) < 0)
+            return RequestStepResult_Error;
+          return RequestStepResult_Restart;
         }
         c->http_req.seen_linefeed = 1;
       } else {
@@ -149,20 +152,20 @@ static ClientStepResult client_http_read_request(Client *c) {
     }
   }
 
-  return ClientStepResult_NoAction;
+  return RequestStepResult_NoAction;
 }
 
-static ClientStepResult client_http_write_response(Client *c) {
+static RequestStepResult request_http_write_response(Request *c) {
   while (c->res.progress < c->res.buf_len) {
     char byte = c->res.buf[c->res.progress];
     ssize_t wlen = write(c->net_fd, &byte, 1);
 
     if (wlen < 1) {
       if (errno != EWOULDBLOCK && errno != EAGAIN) {
-        perror("client write()");
-        return ClientStepResult_Error;
+        perror("request write()");
+        return RequestStepResult_Error;
       }
-      return ClientStepResult_NoAction;
+      return RequestStepResult_NoAction;
     }
 
     /* important to only increase this if write succeeds */
@@ -170,8 +173,8 @@ static ClientStepResult client_http_write_response(Client *c) {
   }
 
   if (c->res.progress == c->res.buf_len) {
-    return ClientStepResult_Error;
+    return RequestStepResult_Error;
   }
 
-  return ClientStepResult_NoAction;
+  return RequestStepResult_NoAction;
 }

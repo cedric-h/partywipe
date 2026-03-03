@@ -2,7 +2,7 @@
 
 #ifndef socket_IMPLEMENTATION
 static int socket_host_bind(const char *host, const char *port);
-static int socket_accept_client(int server_fd);
+static int socket_accept_request(int server_fd);
 #endif
 
 #ifdef socket_IMPLEMENTATION
@@ -120,7 +120,7 @@ static int socket_host_bind(const char *host, const char *port) {
  * Accept a single client on the provided server socket.
  * On error, this returns -1.
  */
-static int socket_accept_client(int server_fd) {
+static int socket_accept_request(int server_fd) {
 
   struct sockaddr sa;
   socklen_t sa_len = sizeof sa;

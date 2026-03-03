@@ -21,7 +21,7 @@
 #define DEBUG 1
 
 #include "socket.h"
-#include "client.h"
+#include "request.h"
 #include "server.h"
 
 
@@ -50,29 +50,29 @@ int main() {
      **/
     server_poll(&server);
 
-    /* first see if any clients need responding to */
-    for (Client *next = NULL, *c = server.last_client; c; c = next) {
+    /* first see if any requests need responding to */
+    for (Request *next = NULL, *c = server.last_request; c; c = next) {
       next = c->next;
 
-      short revents = server_client_get_revents(&server, c);
+      short revents = server_request_get_revents(&server, c);
       if (revents & (POLLHUP | POLLERR)) {
-        server_drop_client(&server, c);
+        server_drop_request(&server, c);
       } else {
-        server_step_client(&server, c);
+        server_step_request(&server, c);
       }
     }
 
 #if DEBUG
-    printf("\nCLIENT COUNT: %zu\n", server_client_count(&server));
-    for (Client *c = server.last_client; c; c = c->next) {
-      // printf("client! id: %zu phase: ", c->id);
+    printf("\nREQUEST COUNT: %zu\n", server_request_count(&server));
+    for (Request *c = server.last_request; c; c = c->next) {
+      // printf("request! id: %zu phase: ", c->id);
 
       switch (c->phase) {
-        case ClientPhase_Empty         : printf("ClientPhase_Empty         \n"); continue;
-        case ClientPhase_HttpResponding: printf("ClientPhase_HttpResponding\n"); continue;
-        case ClientPhase_HttpRequesting:
+        case RequestPhase_Empty         : printf("RequestPhase_Empty         \n"); continue;
+        case RequestPhase_HttpResponding: printf("RequestPhase_HttpResponding\n"); continue;
+        case RequestPhase_HttpRequesting:
           printf(
-            "ClientPhase_HttpRequesting"
+            "RequestPhase_HttpRequesting"
               "(bytes_read: %zu, buf_len: %zu)\n",
             c->http_req.bytes_read,
             c->http_req.buf_len
@@ -83,10 +83,10 @@ int main() {
     }
 #endif
 
-    /* now poll for new clients */
-    if (server_new_client_revent(&server))
+    /* now poll for new requests */
+    if (server_new_request_revent(&server))
       for (;;) {
-        int fd = socket_accept_client(server.host_fd);
+        int fd = socket_accept_request(server.host_fd);
         if (fd < 0) {
           if (errno == EWOULDBLOCK || errno == EAGAIN)
             break;
@@ -94,7 +94,7 @@ int main() {
             continue;
         }
 
-        server_add_client(&server, fd);
+        server_add_request(&server, fd);
       }
 
   }
@@ -106,5 +106,5 @@ int main() {
 #include "socket.h"
 #define server_IMPLEMENTATION
 #include "server.h"
-#define client_IMPLEMENTATION
-#include "client.h"
+#define request_IMPLEMENTATION
+#include "request.h"
