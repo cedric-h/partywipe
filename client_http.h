@@ -33,15 +33,23 @@
 "        inset: 0;\r\n" \
 "        margin: auto;\r\n" \
 "        min-height: 0;\r\n" \
-"        max-height: calc(100% - 2px - 2rem);\r\n" \
+"        max-height: calc(100% - 2px);\r\n" \
 "\r\n" \
-"        padding: 1rem;\r\n" \
+"        .main-content {\r\n" \
+"          padding: 1rem;\r\n" \
+"          width: 100%;\r\n" \
+"          height: 100%;\r\n" \
+"        }\r\n" \
 "      }\r\n" \
 "    </style>\r\n" \
 "  </head>\r\n" \
 "\r\n" \
 "  <body>\r\n" \
-"    <main>At first, there was nothing ...</main>\r\n" \
+"    <main>\r\n" \
+"      <div class=\"main-content\">\r\n" \
+"        At first, there was nothing ...\r\n" \
+"      </div>\r\n" \
+"    </main>\r\n" \
 "  </body>\r\n" \
 "</html>\r\n"
 
