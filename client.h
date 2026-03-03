@@ -26,7 +26,6 @@ typedef struct Client {
 
   ClientPhase phase;
 
-  size_t id;
   int net_fd; /* net fd from accept() */
 
   time_t last_activity;
@@ -46,10 +45,10 @@ typedef struct Client {
 
 } Client;
 
-static void client_init(Client *c, int net_fd, size_t client_id);
+static void client_init(Client *c, int net_fd);
 
 /**
- * Tells hte server which events are worth waking up for.
+ * Tells the server which events are worth waking up for.
  * Important not to subscribe to an event you don't handle,
  * otherwise the server will keep waking up and asking you
  * to handle it, which will burn a lot of CPU cycles.
@@ -75,9 +74,8 @@ static int client_http_respond_to_request(Client *c);
 
 #include "client_http.h"
 
-static void client_init(Client *c, int net_fd, size_t client_id) {
+static void client_init(Client *c, int net_fd) {
   *c = (Client) {
-    .id = client_id,
     .last_activity = time(NULL),
     .phase = ClientPhase_HttpRequesting,
     .net_fd = net_fd,

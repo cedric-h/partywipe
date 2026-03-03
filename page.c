@@ -65,7 +65,7 @@ int main() {
 #if DEBUG
     printf("\nCLIENT COUNT: %zu\n", server_client_count(&server));
     for (Client *c = server.last_client; c; c = c->next) {
-      printf("client! id: %zu phase: ", c->id);
+      // printf("client! id: %zu phase: ", c->id);
 
       switch (c->phase) {
         case ClientPhase_Empty         : printf("ClientPhase_Empty         \n"); continue;

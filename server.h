@@ -5,7 +5,6 @@
 typedef struct {
 
   int host_fd;
-  size_t client_id_i;
   /* The head of the linked list of clients */
   Client *last_client;
 
@@ -112,7 +111,7 @@ static size_t server_client_count(Server *server) {
 
 static void server_add_client(Server *server, int net_fd) {
   Client *c = calloc(sizeof(Client), 1);
-  client_init(c, net_fd, server->client_id_i++);
+  client_init(c, net_fd);
   c->next = server->last_client;
   server->last_client = c;
 }

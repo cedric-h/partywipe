@@ -56,7 +56,7 @@
 static int client_http_respond_to_request(Client *c) {
 
   char path[31] = {0};
-  char cookie[31] = {0};
+  size_t cookie = 0;
   {
     fclose(c->http_req.file);
     c->http_req.file = NULL;
@@ -70,7 +70,7 @@ static int client_http_respond_to_request(Client *c) {
       return -1;
     }
 
-    while (fscanf(req, "Cookie: %30s\r\n", cookie) <= 0)
+    while (fscanf(req, "Cookie: %lu\r\n", &cookie) <= 0)
       if (fscanf(req, "%*[^\n]\n") == EOF)
         break; /* no cookie found */
 
@@ -78,6 +78,8 @@ static int client_http_respond_to_request(Client *c) {
     free(c->http_req.buf);
     c->http_req.buf = NULL;
   }
+
+  printf("cookie = \"%lu\"\n", cookie);
 
   c->phase = ClientPhase_HttpResponding;
 
