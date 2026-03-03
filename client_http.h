@@ -70,7 +70,7 @@ static int client_http_respond_to_request(Client *c) {
       return -1;
     }
 
-    while (fscanf(req, "Cookie: %lu\r\n", &cookie) <= 0)
+    while (fscanf(req, "cookie: __Http-Sesh=%lu\r\n", &cookie) <= 0)
       if (fscanf(req, "%*[^\n]\n") == EOF)
         break; /* no cookie found */
 
@@ -88,7 +88,19 @@ static int client_http_respond_to_request(Client *c) {
     fprintf(tmp, "HTTP/1.0 200 OK\r\n");
     fprintf(tmp, "Content-Length: %lu\r\n", strlen(HTML_RES) - 2);
     fprintf(tmp, "Connection: close\r\n");
-    fprintf(tmp, "Content-Type: text/html; charset=iso-8859-1\r\n");
+    fprintf(tmp, "Content-Type: text/html; charset=utf-8\r\n");
+    if (cookie == 0) {
+      cookie = 1;
+      fprintf(
+        tmp,
+        "Set-Cookie: __Http-Sesh=%lu; "
+          "HttpOnly; "
+          "Secure; "
+          "SameSite=Strict;"
+          "\r\n",
+        cookie
+      );
+    }
     fprintf(tmp, "\r\n");
 
     fprintf(tmp, "%s", HTML_RES);
