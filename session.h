@@ -26,70 +26,112 @@ static void session_free(Session *s) {
   (void)s;
 }
 
-#define HTML_RES \
-"<!DOCTYPE html>\r\n" \
-"<html lang='en'>\r\n" \
-"  <head>\r\n" \
-"    <meta charset='utf-8'/>\r\n" \
-"    <title>Partywipe</title>\r\n" \
-"    <style>\r\n" \
-"      document, body { width: 100vw; height: 100vh; margin: 0px; padding: 0px; }\r\n" \
-"      :root {\r\n" \
-"        color-scheme: light dark;\r\n" \
-"        font-size: calc(6 * min(1vw, 1vh * (9/16)));\r\n" \
-"      }\r\n" \
-"      @media (prefers-color-scheme: dark) {\r\n" \
-"        :root {\r\n" \
-"          --fg: white;\r\n" \
-"          --bg: black;\r\n" \
-"        }\r\n" \
-"      }\r\n" \
-"      @media (prefers-color-scheme: light) {\r\n" \
-"        :root {\r\n" \
-"          --fg: black;\r\n" \
-"          --bg: white;\r\n" \
-"        }\r\n" \
-"      }\r\n" \
-"      main {\r\n" \
-"        aspect-ratio: 9/16;\r\n" \
-"        border: 1px solid var(--fg);\r\n" \
-"\r\n" \
-"        overflow: hidden;\r\n" \
-"        position: absolute;\r\n" \
-"        inset: 0;\r\n" \
-"        margin: auto;\r\n" \
-"        min-height: 0;\r\n" \
-"        max-height: calc(100% - 2px);\r\n" \
-"\r\n" \
-"        .main-content {\r\n" \
-"          position: relative;\r\n" \
-"          margin: 1rem;\r\n" \
-"          width: stretch;\r\n" \
-"          height: stretch;\r\n" \
-"        }\r\n" \
-"      }\r\n" \
-"    </style>\r\n" \
-"  </head>\r\n" \
-"\r\n" \
-"  <body>\r\n" \
-"    <main>\r\n" \
-"      <div class=\"main-content\">\r\n" \
-"        <div style=\"position:absolute;bottom:0px;\">\r\n" \
-"          At first, there was nothing ...\r\n" \
-"        </div>\r\n" \
-"      </div>\r\n" \
-"    </main>\r\n" \
-"  </body>\r\n" \
-"</html>\r\n"
+typedef struct Rcx {
+  FILE *body;
+  FILE *css;
+} Rcx;
 
-static void session_render(Session *s, char **page, size_t *page_len) {
-  (void)s;
+static void session_render_fight(Session *sesh, Rcx *rcx) {
+  (void)sesh;
 
-  FILE *tmp = open_memstream(page, page_len);
+  fprintf(rcx->css,
+    "\r\n.action-bar {"
+    "\r\n  position: absolute;"
+    "\r\n  bottom: 0px;"
+    "\r\n}"
+  );
 
-  fprintf(tmp, "%s", HTML_RES);
+  fprintf(rcx->body,
+    "\r\n<div class=\"action-bar\">"
+    "\r\n  At first, there was nothing ..."
+    "\r\n</div>"
+  );
 
-  fclose(tmp);
+}
+
+static void session_render(Session *sesh, char **page, size_t *page_len) {
+
+  char *css_buf = NULL;
+  size_t css_buf_len = 0;
+  FILE *css = open_memstream(&css_buf, &css_buf_len);
+  fprintf(css,
+    "\r\ndocument, body {"
+    "\r\n  width: 100vw; height: 100vh;"
+    "\r\n  margin: 0px; padding: 0px;"
+    "\r\n}"
+    "\r\n:root {"
+    "\r\n  color-scheme: light dark;"
+    "\r\n  font-size: calc(6 * min(1vw, 1vh * (9/16)));"
+    "\r\n}"
+    "\r\n@media (prefers-color-scheme: dark) {"
+    "\r\n  :root {"
+    "\r\n    --fg: white;"
+    "\r\n    --bg: black;"
+    "\r\n  }"
+    "\r\n}"
+    "\r\n@media (prefers-color-scheme: light) {"
+    "\r\n  :root {"
+    "\r\n    --fg: black;"
+    "\r\n    --bg: white;"
+    "\r\n  }"
+    "\r\n}"
+    "\r\nmain {"
+    "\r\n  aspect-ratio: 9/16;"
+    "\r\n  border: 1px solid var(--fg);"
+    "\r\n"
+    "\r\n  overflow: hidden;"
+    "\r\n  position: absolute;"
+    "\r\n  inset: 0;"
+    "\r\n  margin: auto;"
+    "\r\n  min-height: 0;"
+    "\r\n  max-height: calc(100%% - 2px);"
+    "\r\n"
+    "\r\n  .main-content {"
+    "\r\n    position: relative;"
+    "\r\n    margin: 1rem;"
+    "\r\n    width: stretch;"
+    "\r\n    height: stretch;"
+    "\r\n  }"
+    "\r\n}"
+  );
+
+  char *body_buf = NULL;
+  size_t body_buf_len = 0;
+  FILE *body = open_memstream(&body_buf, &body_buf_len);
+
+  Rcx rcx = { .body = body, .css = css };
+  session_render_fight(sesh, &rcx);
+
+  fclose(css), fclose(body);
+  FILE *out = open_memstream(page, page_len);
+  /* actual post-fix newlines on this one since the ones at the end
+   * and beginning are actually important */
+  fprintf(out,
+    "<!DOCTYPE html>\r\n"
+    "<html lang='en'>\r\n"
+    "  <head>\r\n"
+    "    <meta charset='utf-8'/>\r\n"
+    "    <title>Partywipe</title>\r\n"
+    "    <style>\r\n"
+    "%s\r\n"
+    "    </style>\r\n"
+    "  </head>\r\n"
+    "\r\n"
+    "  <body>\r\n"
+    "    <main>\r\n"
+    "      <div class=\"main-content\">\r\n"
+    "%s\r\n"
+    "      </div>\r\n"
+    "    </main>\r\n"
+    "  </body>\r\n"
+    "</html>\r\n",
+    css_buf,
+    body_buf
+  );
+  free(css_buf);
+  free(body_buf);
+
+  fclose(out);
 }
 
 #endif
