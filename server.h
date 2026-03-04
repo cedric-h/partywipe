@@ -10,6 +10,9 @@ typedef struct {
 
   struct pollfd *pollfds;
   nfds_t pollfd_count;
+
+  Session *sessions;
+  size_t session_count;
 } Server;
 
 static int server_init(Server *server);
@@ -22,14 +25,14 @@ static void server_poll(Server *server);
 
 /* these functions help you process the output of the poll */
 static short server_new_request_revent(Server *server);
-static short server_request_get_revents(Server *server, Request *c);
+static short server_request_get_revents(Server *server, Request *r);
 
 static size_t server_request_count(Server *server);
 static void server_add_request(Server *server, int net_fd);
 
-static int server_step_request(Server *server, Request *c);
+static int server_step_request(Server *server, Request *r);
 
-static void server_drop_request(Server *server, Request *c);
+static void server_drop_request(Server *server, Request *r);
 
 #endif
 
@@ -49,10 +52,19 @@ static int server_init(Server *server) {
 static void server_free(Server *server) {
 
   /* free all the requests */
-  for (Request *next = NULL, *c = server->last_request; c; c = next) {
-    next = c->next;
-    server_drop_request(server, c);
+  for (Request *next = NULL, *r = server->last_request; r; r = next) {
+    next = r->next;
+    server_drop_request(server, r);
   }
+
+  for (
+    Session *sesh = server->sessions;
+    (server->sessions - sesh) < (ssize_t)server->session_count;
+    sesh++
+  ) {
+    session_free(sesh);
+  }
+  free(server->sessions);
 
   close(server->host_fd);
 
@@ -64,9 +76,9 @@ static short server_new_request_revent(Server *server) {
   return server->pollfds[0].revents;
 }
 
-static short server_request_get_revents(Server *server, Request *c) {
+static short server_request_get_revents(Server *server, Request *r) {
   for (nfds_t i = 0; i < server->pollfd_count; i++)
-    if (server->pollfds[i].fd == c->net_fd)
+    if (server->pollfds[i].fd == r->net_fd)
       return server->pollfds[i].revents;
   return 0;
 }
@@ -86,10 +98,10 @@ restart:
   *fd_w++ = (struct pollfd) { .events = POLLIN, .fd = server->host_fd };
 
   /* create pollfds for our requests */
-  for (Request *c = server->last_request; c; c = c->next)
+  for (Request *r = server->last_request; r; r = r->next)
     *fd_w++ = (struct pollfd) {
-      .events = request_events_subscription(c),
-      .fd = c->net_fd
+      .events = request_events_subscription(r),
+      .fd = r->net_fd
     };
 
 #if DEBUG
@@ -104,31 +116,103 @@ restart:
 
 static size_t server_request_count(Server *server) {
   size_t ret = 0;
-  for (Request *c = server->last_request; c; c = c->next)
+  for (Request *r = server->last_request; r; r = r->next)
     ret++;
   return ret;
 }
 
 static void server_add_request(Server *server, int net_fd) {
-  Request *c = calloc(sizeof(Request), 1);
-  request_init(c, net_fd);
-  c->next = server->last_request;
-  server->last_request = c;
+  Request *r = calloc(sizeof(Request), 1);
+  request_init(r, net_fd);
+  r->next = server->last_request;
+  server->last_request = r;
 }
 
-static void server_drop_request(Server *server, Request *c) {
-  request_drop(c);
+static void server_drop_request(Server *server, Request *r) {
+  request_drop(r);
 
-  if (server->last_request == c) {
-    server->last_request = c->next;
+  if (server->last_request == r) {
+    server->last_request = r->next;
   } else
     for (Request *o = server->last_request; o; o = o->next)
-      if (o->next == c) {
-        o->next = c->next;
+      if (o->next == r) {
+        o->next = r->next;
         break;
       }
 
-  free(c);
+  free(r);
+}
+
+static int server_http_respond(Server *server, Request *r) {
+
+  char path[31] = {0};
+  size_t cookie = 0;
+  {
+    fclose(r->http_req.file);
+    r->http_req.file = NULL;
+
+    /* cannot fscanf a memstream, can fscanf an fmemopen */
+    /* (can grow a memstream, cannot grow an fmemopen) */
+    FILE *req = fmemopen(r->http_req.buf, r->http_req.buf_len, "r");
+
+    if (fscanf(req, "GET %30s HTTP/1.1\r\n", path) == 0) {
+      fclose(req);
+      return -1;
+    }
+
+    while (fscanf(req, "cookie: __Http-Sesh=%lu\r\n", &cookie) <= 0)
+      if (fscanf(req, "%*[^\n]\n") == EOF)
+        break; /* no cookie found */
+
+    fclose(req);
+    free(r->http_req.buf);
+    r->http_req.buf = NULL;
+  }
+
+  r->phase = RequestPhase_HttpResponding;
+
+  if (strcmp(path, "/") == 0) {
+    if (cookie == 0 || cookie > server->session_count) {
+      size_t n = server->session_count++;
+      server->sessions = reallocarray(
+        server->sessions,
+        server->session_count,
+        sizeof(struct pollfd)
+      );
+      session_init(server->sessions + n, server->session_count);
+    }
+    Session *sesh = server->sessions + (cookie - 1);
+
+    char *page = NULL;
+    size_t page_len = 0;
+    session_render(sesh, &page, &page_len);
+
+    FILE *tmp = open_memstream(&r->res.buf, &r->res.buf_len);
+    fprintf(tmp, "HTTP/1.0 200 OK\r\n");
+    fprintf(tmp, "Content-Length: %lu\r\n", page_len - 2);
+    fprintf(tmp, "Connection: close\r\n");
+    fprintf(tmp, "Content-Type: text/html; charset=utf-8\r\n");
+    if (cookie == 0)
+      fprintf(
+        tmp,
+        "Set-Cookie: __Http-Sesh=%lu; "
+          "HttpOnly; Secure; "
+          "SameSite=Strict;\r\n",
+        sesh->id
+      );
+
+    fprintf(tmp, "\r\n");
+
+    fprintf(tmp, "%s", page);
+
+    fclose(tmp);
+  } else {
+    FILE *tmp = open_memstream(&r->res.buf, &r->res.buf_len);
+    fprintf(tmp, "HTTP/1.1 404 Not Found\r\n\r\n");
+    fclose(tmp);
+  }
+
+  return 0;
 }
 
 static int server_step_request(Server *server, Request *request) {
@@ -141,6 +225,11 @@ static int server_step_request(Server *server, Request *request) {
     } break;
 
     case RequestStepResult_NoAction: {
+    } break;
+
+    case RequestStepResult_DoneReading: {
+      server_http_respond(server, request);
+      goto restart;
     } break;
 
     case RequestStepResult_Restart: {

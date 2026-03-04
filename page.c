@@ -21,6 +21,7 @@
 #define DEBUG 1
 
 #include "socket.h"
+#include "session.h"
 #include "request.h"
 #include "server.h"
 
@@ -68,7 +69,6 @@ int main() {
       // printf("request! id: %zu phase: ", c->id);
 
       switch (c->phase) {
-        case RequestPhase_Empty         : printf("RequestPhase_Empty         \n"); continue;
         case RequestPhase_HttpResponding: printf("RequestPhase_HttpResponding\n"); continue;
         case RequestPhase_HttpRequesting:
           printf(
@@ -108,3 +108,5 @@ int main() {
 #include "server.h"
 #define request_IMPLEMENTATION
 #include "request.h"
+#define session_IMPLEMENTATION
+#include "session.h"

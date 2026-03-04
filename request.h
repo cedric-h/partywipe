@@ -3,18 +3,9 @@
 #ifndef request_IMPLEMENTATION
 
 typedef enum RequestPhase {
-  RequestPhase_Empty,
   RequestPhase_HttpRequesting,
   RequestPhase_HttpResponding,
 } RequestPhase;
-
-typedef struct RequestResponse {
-  struct RequestResponse *next;
-
-  /* response data goes in here */
-  char *buf;
-  size_t buf_len, progress;
-} RequestResponse;
 
 /**
  * If any HTTP message over this size,
@@ -41,11 +32,15 @@ typedef struct Request {
     size_t buf_len;
   } http_req;
 
-  RequestResponse res;
+  struct RequestResponse {
+    /* response data goes in here */
+    char *buf;
+    size_t buf_len, progress;
+  } res;
 
 } Request;
 
-static void request_init(Request *c, int net_fd);
+static void request_init(Request *r, int net_fd);
 
 /**
  * Tells the server which events are worth waking up for.
@@ -53,18 +48,19 @@ static void request_init(Request *c, int net_fd);
  * otherwise the server will keep waking up and asking you
  * to handle it, which will burn a lot of CPU cycles.
  **/
-static short request_events_subscription(Request *c);
+static short request_events_subscription(Request *r);
 
 typedef enum {
   RequestStepResult_Error,
   RequestStepResult_NoAction,
+  RequestStepResult_DoneReading,
+  /* this just means "it's probably meaningful to step more,"
+   * e.g. because you finished reading and can now start writing */
   RequestStepResult_Restart,
 } RequestStepResult;
-static RequestStepResult request_step(Request *c);
+static RequestStepResult request_step(Request *r);
 
-static void request_drop(Request *c);
-
-static int request_http_respond_to_request(Request *c);
+static void request_drop(Request *r);
 
 #endif
 
@@ -74,57 +70,37 @@ static int request_http_respond_to_request(Request *c);
 
 #include "request_http.h"
 
-static void request_init(Request *c, int net_fd) {
-  *c = (Request) {
+static void request_init(Request *r, int net_fd) {
+  *r = (Request) {
     .last_activity = time(NULL),
     .phase = RequestPhase_HttpRequesting,
     .net_fd = net_fd,
   };
-  c->http_req.file = open_memstream(
-    &c->http_req.buf,
-    &c->http_req.buf_len
+  r->http_req.file = open_memstream(
+    &r->http_req.buf,
+    &r->http_req.buf_len
   );
 }
 
-static void request_drop(Request *c) {
-  if (c->phase == RequestPhase_HttpRequesting) {
-    if (c->http_req.file != NULL)
-      fclose(c->http_req.file);
-    if (c->http_req.buf != NULL)
-      free(c->http_req.buf);
+static void request_drop(Request *r) {
+  if (r->phase == RequestPhase_HttpRequesting) {
+    if (r->http_req.file != NULL)
+      fclose(r->http_req.file);
+    if (r->http_req.buf != NULL)
+      free(r->http_req.buf);
   }
 
-  c->phase = RequestPhase_Empty;
+  if (r->res.buf != NULL) free(r->res.buf);
 
-  /* free any lingering queued RequestResponses */
-  if (c->res.next) {
-    RequestResponse *last = c->res.next;
-    for (
-      RequestResponse *next = last->next;
-      last;
-      last = next
-    ) {
-      next = last->next;
-      free(last->buf);
-      free(last);
-    }
-  }
-
-  if (c->     res.buf     != NULL) free(c->res.buf);
-
-  close(c->net_fd);
+  close(r->net_fd);
 }
 
-static short request_events_subscription(Request *c) {
+static short request_events_subscription(Request *r) {
   short events = 0;
   short events_writes = POLLWRNORM | POLLWRBAND          ;
   short events_reads  = POLLRDNORM | POLLRDBAND | POLLPRI;
 
-  switch (c->phase) {
-    case RequestPhase_Empty: {
-      /* this probably shouldn't happen */
-      fprintf(stderr, "empty request!?\n");
-    } break;
+  switch (r->phase) {
     case RequestPhase_HttpRequesting: {
       events = events_writes;
     } break;
@@ -136,27 +112,24 @@ static short request_events_subscription(Request *c) {
   return events;
 }
 
-static RequestStepResult request_step(Request *c) {
+static RequestStepResult request_step(Request *r) {
 
-  if ((c->phase == RequestPhase_HttpRequesting) ||
-      (c->phase == RequestPhase_HttpRequesting)) {
-    long int time_since_io = time(NULL) - c->last_activity;
+  if ((r->phase == RequestPhase_HttpRequesting) ||
+      (r->phase == RequestPhase_HttpRequesting)) {
+    long int time_since_io = time(NULL) - r->last_activity;
 
     /* timeout */
     if (time_since_io > 1)
       return RequestStepResult_Error;
   }
 
-  switch (c->phase) {
-
-    case RequestPhase_Empty:
-      return RequestStepResult_NoAction;
+  switch (r->phase) {
 
     case RequestPhase_HttpRequesting:
-      return request_http_read_request(c);
+      return request_http_read_request(r);
 
     case RequestPhase_HttpResponding:
-      return request_http_write_response(c);
+      return request_http_write_response(r);
 
   }
 
