@@ -1,7 +1,7 @@
 # dev
 
 Rebuild whenever any of the code changes
-- [`find *.c *.h | entr -rs 'clear && gcc -g -Wall -Werror -Wextra -Wpedantic -Wconversion -Wformat=2 -Wshadow page.c && ./a.out'`](https://github.com/eradman/entr)
+- [`find *.c *.h | entr -rs 'clear && ./build.sh && ./a.out'`](https://github.com/eradman/entr)
 
 Run with leak/memory checking:
 - [`gcc -Wall -Werror -O0 -g page.c && valgrind --leak-check=yes ./a.out`](https://valgrind.org/docs/manual/quick-start.html)

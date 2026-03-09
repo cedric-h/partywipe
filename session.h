@@ -31,11 +31,25 @@ typedef struct Rcx {
   FILE *css;
 } Rcx;
 
+// static char *svg_brotchen =
+// #include "assets/brötchen.svg"
+// ;
+static char *svg_ei =
+#include "assets/brötchen.svg"
+// #include "assets/Ei.svg"
+;
+
 static void session_render_fight(Session *sesh, Rcx *rcx) {
   (void)sesh;
 
   /* combatants */
   {
+    fprintf(rcx->body, "%s", svg_ei);
+    fprintf(rcx->css,
+      "\r\nsvg {"
+      "\r\n  background-color: transparent !important;"
+      "\r\n}"
+    );
   }
 
   /* action bar */
