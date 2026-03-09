@@ -171,7 +171,7 @@ static int server_http_respond(Server *server, Request *r) {
 
   r->phase = RequestPhase_HttpResponding;
 
-  if (strcmp(path, "/") == 0) {
+  {
     if (cookie == 0 || cookie > server->session_count) {
       size_t n = server->session_count++;
       server->sessions = reallocarray(
@@ -205,10 +205,6 @@ static int server_http_respond(Server *server, Request *r) {
 
     fprintf(tmp, "%s", page);
 
-    fclose(tmp);
-  } else {
-    FILE *tmp = open_memstream(&r->res.buf, &r->res.buf_len);
-    fprintf(tmp, "HTTP/1.1 404 Not Found\r\n\r\n");
     fclose(tmp);
   }
 

@@ -34,18 +34,47 @@ typedef struct Rcx {
 static void session_render_fight(Session *sesh, Rcx *rcx) {
   (void)sesh;
 
-  fprintf(rcx->css,
-    "\r\n.action-bar {"
-    "\r\n  position: absolute;"
-    "\r\n  bottom: 0px;"
-    "\r\n}"
-  );
+  /* combatants */
+  {
+  }
 
-  fprintf(rcx->body,
-    "\r\n<div class=\"action-bar\">"
-    "\r\n  At first, there was nothing ..."
-    "\r\n</div>"
-  );
+  /* action bar */
+  {
+    fprintf(rcx->css,
+      "\r\n.action-bar {"
+      "\r\n  position: absolute;"
+      "\r\n  bottom: 0px;"
+      "\r\n  display: flex;"
+      "\r\n  flex-wrap: wrap;"
+      "\r\n  gap: 0.75rem;"
+      "\r\n  width: 100%%;"
+
+      "\r\n  .action-button {"
+      "\r\n    &.disabled { opacity: 0.2; }"
+      "\r\n    border: 0.1rem solid var(--fg);"
+      "\r\n    padding: 0.75rem;"
+      "\r\n    flex-grow: 1;"
+      "\r\n    flex-shrink: 1;"
+      "\r\n    flex-basis: 0;"
+      "\r\n    text-align: center;"
+      "\r\n  }"
+      "\r\n}"
+    );
+
+    fprintf(rcx->body,
+      "\r\n<div class=\"action-bar\">"
+      "\r\n  <a href=\"attack0\" class=\"action-button\">"
+      "\r\n    headbutt"
+      "\r\n  </a>"
+      "\r\n  <a class=\"action-button disabled\">"
+      "\r\n    swipe"
+      "\r\n  </a>"
+      "\r\n  <a href=\"inventory\" class=\"action-button\">"
+      "\r\n    inventory"
+      "\r\n  </a>"
+      "\r\n</div>"
+    );
+  }
 
 }
 
@@ -58,6 +87,7 @@ static void session_render(Session *sesh, char **page, size_t *page_len) {
     "\r\ndocument, body {"
     "\r\n  width: 100vw; height: 100vh;"
     "\r\n  margin: 0px; padding: 0px;"
+    "\r\n  font-family: monospace;"
     "\r\n}"
     "\r\n:root {"
     "\r\n  color-scheme: light dark;"
@@ -77,14 +107,14 @@ static void session_render(Session *sesh, char **page, size_t *page_len) {
     "\r\n}"
     "\r\nmain {"
     "\r\n  aspect-ratio: 9/16;"
-    "\r\n  border: 1px solid var(--fg);"
+    "\r\n  border: 0.05rem solid var(--fg);"
     "\r\n"
     "\r\n  overflow: hidden;"
     "\r\n  position: absolute;"
     "\r\n  inset: 0;"
     "\r\n  margin: auto;"
     "\r\n  min-height: 0;"
-    "\r\n  max-height: calc(100%% - 2px);"
+    "\r\n  max-height: calc(100%% - 0.2rem);"
     "\r\n"
     "\r\n  .main-content {"
     "\r\n    position: relative;"
