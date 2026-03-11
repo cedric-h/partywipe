@@ -4,6 +4,7 @@
 
 typedef struct Session {
   size_t id;
+  bool darkmode;
 } Session;
 
 static void session_init(Session *s, size_t id);
@@ -31,23 +32,41 @@ typedef struct Rcx {
   FILE *css;
 } Rcx;
 
-// static char *svg_brotchen =
-// #include "assets/brötchen.svg"
-// ;
-// static char *svg_ei =
-// #include "assets/Ei_DARK.svg"
-// ;
+static void session_render_darkmode_detector(Session *sesh, Rcx *rcx) {
+  (void)sesh;
+
+  fprintf(rcx->body, "<div id=\"darkmode_detector\">");
+  fprintf(rcx->css,
+    "\r\n#darkmode_detector {"
+    "\r\n  width: 0;"
+    "\r\n  height: 0;"
+    "\r\n}"
+    "\r\n@media (prefers-color-scheme: dark) {"
+    "\r\n  #darkmode_detector {"
+    "\r\n    background-image: url(\"assets/darkmode_detector_dark\");"
+    "\r\n  }"
+    "\r\n}"
+    "\r\n@media (prefers-color-scheme: light) {"
+    "\r\n  #darkmode_detector {"
+    "\r\n    background-image: url(\"assets/darkmode_detector_light\");"
+    "\r\n  }"
+    "\r\n}"
+  );
+}
 
 static void session_render_fight(Session *sesh, Rcx *rcx) {
-  (void)sesh;
 
   /* combatants */
   {
-    fprintf(rcx->body, "<img src=\"assets/Ei_DARK.svg\"/>");
+    fprintf(
+      rcx->body,
+      "%s",
+      (sesh->darkmode)
+        ? "<img style=\"width:5rem\" src=\"assets/Ei_DARK.svg\"/>"
+        : "<img style=\"width:5rem\" src=\"assets/Ei_LIGHT.svg\"/>"
+    );
     fprintf(rcx->css,
-      "\r\nsvg {"
-      "\r\n  background-color: transparent !important;"
-      "\r\n}"
+      "\r\n"
     );
   }
 
@@ -143,6 +162,7 @@ static void session_render(Session *sesh, char **page, size_t *page_len) {
   FILE *body = open_memstream(&body_buf, &body_buf_len);
 
   Rcx rcx = { .body = body, .css = css };
+  session_render_darkmode_detector(sesh, &rcx);
   session_render_fight(sesh, &rcx);
 
   fclose(css), fclose(body);
@@ -154,6 +174,7 @@ static void session_render(Session *sesh, char **page, size_t *page_len) {
     "<html lang='en'>\r\n"
     "  <head>\r\n"
     "    <meta charset='utf-8'/>\r\n"
+    "    <link rel=\"icon\" href=\"data:image/svg+xml,<svg xmlns=%%22http://www.w3.org/2000/svg%%22 viewBox=%%220 0 100 100%%22><text y=%%22.9em%%22 font-size=%%2290%%22>⚔️</text></svg>\">\r\n"
     "    <title>Partywipe</title>\r\n"
     "    <style>\r\n"
     "%s\r\n"

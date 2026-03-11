@@ -151,14 +151,18 @@ static void server_drop_request(Server *server, Request *r) {
   free(r);
 }
 
-static char *svg_ei =
+static char *svg_dark_ei =
 #include "assets/Ei_DARK.svg"
+;
+static char *svg_light_ei =
+#include "assets/Ei_LIGHT.svg"
 ;
 
 static int server_http_respond(Server *server, Request *r) {
 
-  char path[31] = {0};
-  size_t cookie = 0;
+  char path[51] = {0};
+  size_t sesh_cookie = 0;
+  bool darkmode_cookie = false;
   {
     fclose(r->http_req.file);
     r->http_req.file = NULL;
@@ -167,17 +171,33 @@ static int server_http_respond(Server *server, Request *r) {
     /* (can grow a memstream, cannot grow an fmemopen) */
     FILE *req = fmemopen(r->http_req.buf, r->http_req.buf_len, "r");
 
-    if (fscanf(req, "GET %30s HTTP/1.1\r\n", path) == 0) {
+    if (fscanf(req, "GET %50s HTTP/1.1\r\n", path) == 0) {
       fclose(req);
       return -1;
     }
 
-    while (fscanf(req, "cookie: __Http-Sesh=%lu\r\n", &cookie) <= 0)
+    while (true) {
+      char cookie_name[20] = {0};
+
+      if (fscanf(req, "cookie: __Http-%[^=]", cookie_name) > 0) {
+        printf("cookie_name = %s\n", cookie_name);
+
+        if (strcmp(cookie_name, "Sesh") == 0)
+          fscanf(req, "=%lu\r\n", &sesh_cookie);
+
+        char tmp[10] = {0};
+        if (strcmp(cookie_name, "Darkmode") == 0)
+          if (fscanf(req, "=%10s\r\n", tmp) > 0) {
+            printf("tmp = %s\n", tmp);
+            darkmode_cookie = strcmp(tmp, "dark") == 0;
+          }
+      }
+
       if (fscanf(req, "%*[^\n]\n") == EOF)
-        break; /* no cookie found */
+        break; /* no sesh_cookie found */
+    }
 
     fclose(req);
-    puts(r->http_req.buf);
     free(r->http_req.buf);
     r->http_req.buf = NULL;
   }
@@ -186,14 +206,54 @@ static int server_http_respond(Server *server, Request *r) {
 
   {
     char asset_name[40] = {0};
-    if (sscanf(path, "/assets/%40s", asset_name)) {
+    if (sscanf(path, "/assets/%40s", asset_name) > 0) {
       FILE *tmp = open_memstream(&r->res.buf, &r->res.buf_len);
       fprintf(tmp, "HTTP/1.0 200 OK\r\n");
-      fprintf(tmp, "Content-Length: %lu\r\n", strlen(svg_ei) - 2);
       fprintf(tmp, "Connection: close\r\n");
+      fprintf(tmp, "Cache-Control: no-cache\r\n");
       fprintf(tmp, "Content-Type: image/svg+xml; charset=utf-8\r\n");
+
+      char *content = 
+          "\r\n<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 100\">"
+          "\r\n  <text"
+          "\r\n    x=\"50%\""
+          "\r\n    y=\"50%\""
+          "\r\n    dominant-baseline=\"middle\""
+          "\r\n    text-anchor=\"middle\""
+          "\r\n    font-size=\"80\""
+          "\r\n  >⁉️</text>"
+          "\r\n</svg>"
+        ;
+
+      if (strcmp(asset_name, "Ei_DARK.svg" ) == 0) content = svg_dark_ei;
+      if (strcmp(asset_name, "Ei_LIGHT.svg") == 0) content = svg_light_ei;
+      printf("asset_name = %s\n", asset_name);
+
+      if (sscanf(path, "/assets/darkmode_detector_%40s", asset_name) > 0) {
+        fprintf(
+          tmp,
+          "Set-Cookie: __Http-Darkmode=%s; "
+            "HttpOnly; Secure; "
+            "SameSite=Strict;\r\n",
+          asset_name
+        );
+
+        content =
+          "\r\n<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 100\">"
+          "\r\n  <text"
+          "\r\n    x=\"50%\""
+          "\r\n    y=\"50%\""
+          "\r\n    dominant-baseline=\"middle\""
+          "\r\n    text-anchor=\"middle\""
+          "\r\n    font-size=\"80\""
+          "\r\n  >🌑</text>"
+          "\r\n</svg>"
+        ;
+      }
+      fprintf(tmp, "Content-Length: %lu\r\n", strlen(content));
+
       fprintf(tmp, "\r\n");
-      fprintf(tmp, "%s", svg_ei);
+      fprintf(tmp, "%s", content);
       fprintf(tmp, "\r\n");
       fclose(tmp);
 
@@ -202,19 +262,20 @@ static int server_http_respond(Server *server, Request *r) {
   }
 
   {
-    if (cookie == 0 || cookie > server->session_count) {
+    if (sesh_cookie == 0 || sesh_cookie > server->session_count) {
       size_t n = server->session_count++;
       server->sessions = reallocarray(
         server->sessions,
         server->session_count,
-        sizeof(struct pollfd)
+        sizeof(server->sessions[0])
       );
       session_init(server->sessions + n, server->session_count);
     }
-    Session *sesh = server->sessions + (cookie - 1);
+    Session *sesh = server->sessions + (sesh_cookie - 1);
 
     char *page = NULL;
     size_t page_len = 0;
+    sesh->darkmode = darkmode_cookie;
     session_render(sesh, &page, &page_len);
 
     FILE *tmp = open_memstream(&r->res.buf, &r->res.buf_len);
@@ -222,7 +283,7 @@ static int server_http_respond(Server *server, Request *r) {
     fprintf(tmp, "Content-Length: %lu\r\n", page_len - 2);
     fprintf(tmp, "Connection: close\r\n");
     fprintf(tmp, "Content-Type: text/html; charset=utf-8\r\n");
-    if (cookie == 0)
+    if (sesh_cookie == 0)
       fprintf(
         tmp,
         "Set-Cookie: __Http-Sesh=%lu; "
@@ -234,6 +295,7 @@ static int server_http_respond(Server *server, Request *r) {
     fprintf(tmp, "\r\n");
 
     fprintf(tmp, "%s", page);
+    free(page);
 
     fclose(tmp);
   }

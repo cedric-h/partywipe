@@ -47,12 +47,22 @@ int main() {
         if (!dark && asset_mode_in != AssetMode_Light) continue;
       }
 
-      FILE *in = NULL;
+      char *og_in = NULL;
       {
         char in_path[269] = {0};
         snprintf(in_path, sizeof(in_path), "./assets_raw/%s", d->d_name);
-        in = fopen(in_path, "r");
+        FILE *in_f = fopen(in_path, "r");
+
+        fseek(in_f, 0, SEEK_END);
+        size_t size = (size_t)ftell(in_f);
+        rewind(in_f);
+
+        og_in = malloc(size + 1);
+        fread(og_in, 1, size, in_f);
+        og_in[size] = '\0';
+        fclose(in_f);
       }
+      char *in = og_in;
 
       char out_path[269] = {0};
       if (asset_mode_in == AssetMode_None) {
@@ -71,23 +81,31 @@ int main() {
 
       fprintf(out, "\""); // wrap the output in quotes so we can #include it in C
       while (true) {
-        ssize_t start = ftell(in);
+        int n = 0;
 
         /* we only need to do these automatic translations if the artist
          * hasn't already done them for us. */
         if (asset_mode_in == AssetMode_None) {
           /* replace the default tldraw.app off-black with off-white */
           if (dark) {
-            if (fscanf(in, "#1d1d1d"), ftell(in) != start) {
+            if (sscanf(in, "#1d1d1d%n", &n), n == strlen("#1d1d1d")) {
+              in += n;
               fprintf(out, "#e2e2e2");
               continue;
             }
           }
         }
 
-        char c = 0;
-        if (fscanf(in, "%c", &c) == EOF)
-          break;
+        if (
+          sscanf(in, "background-color: rgb(249, 250, 251);%n", &n),
+          n == strlen("background-color: rgb(249, 250, 251);")
+        ) {
+          in += n;
+          continue;
+        }
+
+        char c = *in++;
+        if (c == 0) break;
 
         /* escape quotes */
         if (c == '"') {
@@ -104,7 +122,7 @@ int main() {
       fprintf(out, "\""); // wrap the output in quotes so we can #include it in C
 
       fclose(out);
-      fclose(in);
+      free(og_in);
     }
 
   }
