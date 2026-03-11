@@ -34,16 +34,16 @@ typedef struct Rcx {
 // static char *svg_brotchen =
 // #include "assets/brötchen.svg"
 // ;
-static char *svg_ei =
-#include "assets/Ei.svg"
-;
+// static char *svg_ei =
+// #include "assets/Ei_DARK.svg"
+// ;
 
 static void session_render_fight(Session *sesh, Rcx *rcx) {
   (void)sesh;
 
   /* combatants */
   {
-    fprintf(rcx->body, "%s", svg_ei);
+    fprintf(rcx->body, "<img src=\"assets/Ei_DARK.svg\"/>");
     fprintf(rcx->css,
       "\r\nsvg {"
       "\r\n  background-color: transparent !important;"

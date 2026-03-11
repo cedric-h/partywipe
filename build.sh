@@ -1,3 +1,7 @@
+#/usr/bin/bash
+
+set -e
+
 flags="\
  -g \
  -Wall \

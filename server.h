@@ -151,6 +151,10 @@ static void server_drop_request(Server *server, Request *r) {
   free(r);
 }
 
+static char *svg_ei =
+#include "assets/Ei_DARK.svg"
+;
+
 static int server_http_respond(Server *server, Request *r) {
 
   char path[31] = {0};
@@ -173,11 +177,29 @@ static int server_http_respond(Server *server, Request *r) {
         break; /* no cookie found */
 
     fclose(req);
+    puts(r->http_req.buf);
     free(r->http_req.buf);
     r->http_req.buf = NULL;
   }
 
   r->phase = RequestPhase_HttpResponding;
+
+  {
+    char asset_name[40] = {0};
+    if (sscanf(path, "/assets/%40s", asset_name)) {
+      FILE *tmp = open_memstream(&r->res.buf, &r->res.buf_len);
+      fprintf(tmp, "HTTP/1.0 200 OK\r\n");
+      fprintf(tmp, "Content-Length: %lu\r\n", strlen(svg_ei) - 2);
+      fprintf(tmp, "Connection: close\r\n");
+      fprintf(tmp, "Content-Type: image/svg+xml; charset=utf-8\r\n");
+      fprintf(tmp, "\r\n");
+      fprintf(tmp, "%s", svg_ei);
+      fprintf(tmp, "\r\n");
+      fclose(tmp);
+
+      return 0;
+    }
+  }
 
   {
     if (cookie == 0 || cookie > server->session_count) {
