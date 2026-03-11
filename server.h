@@ -107,8 +107,16 @@ restart:
 #if DEBUG
   printf("polling ... %lu\n", time(NULL));
 #endif
+
   ssize_t updated = poll(server->pollfds, server->pollfd_count, -1);
   if (updated < 0) {
+
+#if DEBUG
+    if (errno == EINTR) {
+      exit(0);
+    }
+#endif
+
     perror("poll():");
     goto restart;
   }

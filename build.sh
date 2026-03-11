@@ -1,20 +1,17 @@
-mkdir -p assets
+flags="\
+ -g \
+ -Wall \
+ -Werror \
+ -Wextra \
+ -Wpedantic \
+ -Wconversion \
+ -Wformat=2 \
+ -Wshadow \
+ -Wno-overlength-strings \
+"
 
-cd assets_raw
-for f in *; do
-  printf '"%s"' "\
-          $(sed 's/"/\\"/g' "$f" | sed 's/#1d1d1d/var(--fg)/g')\
-  " > "../assets/$f"
-done
-cd ..
+gcc $flags asset_pipeline.c
+./a.out
 
-gcc -g \
-  -Wall \
-  -Werror \
-  -Wextra \
-  -Wpedantic \
-  -Wconversion \
-  -Wformat=2 \
-  -Wshadow \
-  -Wno-overlength-strings \
-  page.c
+gcc $flags page.c
+./a.out

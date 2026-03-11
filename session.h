@@ -35,8 +35,7 @@ typedef struct Rcx {
 // #include "assets/brötchen.svg"
 // ;
 static char *svg_ei =
-#include "assets/brötchen.svg"
-// #include "assets/Ei.svg"
+#include "assets/Ei.svg"
 ;
 
 static void session_render_fight(Session *sesh, Rcx *rcx) {
