@@ -8,6 +8,7 @@
 #include <time.h>
 #include <string.h>
 #include <stdlib.h>
+#include <dirent.h>
 
 /* networking */
 #include <arpa/inet.h>

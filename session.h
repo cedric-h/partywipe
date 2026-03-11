@@ -4,7 +4,6 @@
 
 typedef struct Session {
   size_t id;
-  bool darkmode;
 } Session;
 
 static void session_init(Session *s, size_t id);
@@ -32,41 +31,25 @@ typedef struct Rcx {
   FILE *css;
 } Rcx;
 
-static void session_render_darkmode_detector(Session *sesh, Rcx *rcx) {
-  (void)sesh;
-
-  fprintf(rcx->body, "<div id=\"darkmode_detector\">");
-  fprintf(rcx->css,
-    "\r\n#darkmode_detector {"
-    "\r\n  width: 0;"
-    "\r\n  height: 0;"
-    "\r\n}"
-    "\r\n@media (prefers-color-scheme: dark) {"
-    "\r\n  #darkmode_detector {"
-    "\r\n    background-image: url(\"assets/darkmode_detector_dark\");"
-    "\r\n  }"
-    "\r\n}"
-    "\r\n@media (prefers-color-scheme: light) {"
-    "\r\n  #darkmode_detector {"
-    "\r\n    background-image: url(\"assets/darkmode_detector_light\");"
-    "\r\n  }"
-    "\r\n}"
-  );
-}
-
 static void session_render_fight(Session *sesh, Rcx *rcx) {
+  (void) sesh;
 
   /* combatants */
   {
     fprintf(
       rcx->body,
-      "%s",
-      (sesh->darkmode)
-        ? "<img style=\"width:5rem\" src=\"assets/Ei_DARK.svg\"/>"
-        : "<img style=\"width:5rem\" src=\"assets/Ei_LIGHT.svg\"/>"
+      "<img class=\"combatant-image\" src=\"assets/brotchen.svg\"/>"
     );
     fprintf(rcx->css,
-      "\r\n"
+      "\r\n.combatant-image {"
+      "\r\n  width: 5rem;"
+      "\r\n}"
+
+      "\r\n@media (prefers-color-scheme: dark) {"
+      "\r\n  .combatant-image {"
+      "\r\n    filter: invert(1);"
+      "\r\n  }"
+      "\r\n}"
     );
   }
 
@@ -162,7 +145,6 @@ static void session_render(Session *sesh, char **page, size_t *page_len) {
   FILE *body = open_memstream(&body_buf, &body_buf_len);
 
   Rcx rcx = { .body = body, .css = css };
-  session_render_darkmode_detector(sesh, &rcx);
   session_render_fight(sesh, &rcx);
 
   fclose(css), fclose(body);
