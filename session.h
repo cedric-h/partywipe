@@ -34,24 +34,94 @@ typedef struct Rcx {
 static void session_render_fight(Session *sesh, Rcx *rcx) {
   (void) sesh;
 
+#define ATTACK_DIST "8.5rem"
+
   /* combatants */
   {
     fprintf(
       rcx->body,
-      "<img class=\"combatant-image\" src=\"assets/brotchen.svg\"/>"
+      "\r\n<div class=\"combatant-board\">"
+      "\r\n  <div class=\"enemy-row\">"
+      "\r\n    <img class=\"combatant-image active\" src=\"assets/Ei.svg\"/>"
+      "\r\n  </div>"
+      "\r\n  <div class=\"player-row\">"
+      "\r\n    <img class=\"combatant-image active\" src=\"assets/brotchen.svg\"/>"
+      "\r\n  </div>"
+      "\r\n</div>"
     );
     fprintf(rcx->css,
-      "\r\n.combatant-image {"
-      "\r\n  width: 5rem;"
+      "\r\n.combatant-board {"
+      "\r\n  width: 100%%;"
+      "\r\n  aspect-ratio: 1;"
+      "\r\n  display: flex;"
+      "\r\n  flex-direction: column;"
+      "\r\n  justify-content: space-between;"
+      "\r\n  .player-row,.enemy-row {"
+      "\r\n    width: 100%%;"
+      "\r\n    display: flex;"
+      "\r\n  }"
+      "\r\n  .enemy-row {"
+      "\r\n    flex-direction: row-reverse;"
+      "\r\n  }"
+      "\r\n  --attack-duration: 0.5s;"
+      "\r\n  --attack-timing: cubic-bezier(0.42, 0, 1, 1);"
+      "\r\n  .player-row {"
+      "\r\n    --attack-delay: 0.2s;"
+      "\r\n    --attack-frames: player-attack;"
+      "\r\n    --ouch-delay: 2.5s;"
+      "\r\n    --ouch-frames: player-ouch;"
+      "\r\n  }"
+      "\r\n  .enemy-row {"
+      "\r\n    --attack-delay: 2.0s;"
+      "\r\n    --attack-frames: enemy-attack;"
+      "\r\n    --ouch-delay: 0.7s;"
+      "\r\n    --ouch-frames: enemy-ouch;"
+      "\r\n  }"
+      "\r\n  .active {" /*                               attack, ouch */
+      "\r\n    animation-duration:       var(--attack-duration), 0.2s;"
+      "\r\n    animation-delay:             var(--attack-delay), var(--ouch-delay);"
+      "\r\n    animation-timing-function:  var(--attack-timing), ease-out;"
+      "\r\n    animation-iteration-count:                     2, 2;"
+      "\r\n    animation-direction:                   alternate, alternate;"
+      "\r\n    animation-fill-mode:                        both, both;"
+      "\r\n    animation-name:             var(--attack-frames), var(--ouch-frames);"
+      "\r\n    animation-composition: accumulate;"
+      "\r\n  }"
+      "\r\n  .combatant-image {"
+      "\r\n    width: 5rem;"
+      "\r\n  }"
+      "\r\n}"
+
+      "\r\n@keyframes player-attack {"
+      "\r\n  from { translate: 0; }"
+      "\r\n  40%% { translate: -1rem 1rem; }"
+      "\r\n  to { translate: "ATTACK_DIST" -"ATTACK_DIST"; }"
+      "\r\n}"
+      "\r\n@keyframes enemy-attack {"
+      "\r\n  from { translate: 0; }"
+      "\r\n  40%% { translate: 1rem -1rem; }"
+      "\r\n  to { translate: -"ATTACK_DIST" "ATTACK_DIST"; }"
+      "\r\n}"
+
+      "\r\n@keyframes enemy-ouch {"
+      "\r\n  from { translate: 0; }"
+      "\r\n  to { translate: 0.65rem -0.6175rem; }"
+      "\r\n}"
+      "\r\n@keyframes player-ouch {"
+      "\r\n  from { translate: 0; }"
+      "\r\n  to { translate: -0.65rem 0.6175rem; }"
       "\r\n}"
 
       "\r\n@media (prefers-color-scheme: dark) {"
       "\r\n  .combatant-image {"
       "\r\n    filter: invert(1);"
+      // Ei looks good either way
+      "\r\n    &[src=\"assets/Ei.svg\"] { filter: revert; }"
       "\r\n  }"
       "\r\n}"
     );
   }
+#undef ATTACK_DIST
 
   /* action bar */
   {
