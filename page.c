@@ -2,13 +2,14 @@
 
 /* basics */
 #include <stdio.h>
-#include <stdbool.h>
+#include <stdlib.h>
 #include <unistd.h>
 #include <errno.h>
 #include <time.h>
-#include <string.h>
-#include <stdlib.h>
 #include <dirent.h>
+#include <math.h>
+#include <string.h>
+#include <stdbool.h>
 
 /* networking */
 #include <arpa/inet.h>
@@ -20,6 +21,8 @@
 #include <poll.h>
 
 #define DEBUG 1
+#define COUNT(x) (sizeof(x) / sizeof((x)[0]))
+#define MAX(x, y) (((x) > (y)) ? (x) : (y))
 
 #include "socket.h"
 #include "session.h"

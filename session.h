@@ -2,12 +2,15 @@
 
 #ifndef session_IMPLEMENTATION
 
+typedef int32_t hp_t;
+
 typedef struct Session {
   size_t id;
+  struct { hp_t hp, hp_max; } player, enemy;
 } Session;
 
 static void session_init(Session *s, size_t id);
-static void session_render(Session *s, char **page, size_t *page_len);
+static void session_render(Session *s, char *path, char **page, size_t *page_len);
 static void session_free(Session *s);
 
 #endif
@@ -19,6 +22,8 @@ static void session_free(Session *s);
 static void session_init(Session *s, size_t id) {
   *s = (Session) {
     .id = id,
+    .player = { .hp = 10, .hp_max = 10 },
+    .enemy = { .hp = 7, .hp_max = 7 }
   };
 }
 
@@ -31,10 +36,32 @@ typedef struct Rcx {
   FILE *css;
 } Rcx;
 
-static void session_render_fight(Session *sesh, Rcx *rcx) {
+typedef enum {
+  FightActionKind_None,
+  FightActionKind_Turn,
+} FightActionKind;
+
+typedef struct {
+  hp_t hp_from;
+  hp_t hp_to;
+  hp_t hp_max;
+} FightActionTurn;
+
+typedef struct {
+  FightActionKind kind;
+  struct {
+    FightActionTurn player, enemy;
+  } turn;
+} FightAction;
+
+static void session_render_fight(Session *sesh, Rcx *rcx, FightAction action) {
   (void) sesh;
 
-#define ATTACK_DIST "8.5rem"
+  char *hp_color_levels[] = {
+    "red",
+    "yellow",
+    "lightgreen",
+  };
 
   /* combatants */
   {
@@ -44,13 +71,13 @@ static void session_render_fight(Session *sesh, Rcx *rcx) {
       "\r\n  <div class=\"enemy-row\">"
       "\r\n    <div class=\"combatant\">"
       "\r\n      <img class=\"combatant-image active\" src=\"assets/Ei.svg\"/>"
-      "\r\n      <div class=\"hp-bar\" style:\"--hp-percent:50%%;\"></div>"
+      "\r\n      <div class=\"hp-bar\"></div>"
       "\r\n    </div>"
       "\r\n  </div>"
       "\r\n  <div class=\"player-row\">"
       "\r\n    <div class=\"combatant\">"
       "\r\n      <img class=\"combatant-image active\" src=\"assets/brotchen.svg\"/>"
-      "\r\n      <div class=\"hp-bar\" style:\"--hp-percent:50%%;\"></div>"
+      "\r\n      <div class=\"hp-bar\"></div>"
       "\r\n    </div>"
       "\r\n  </div>"
       "\r\n</div>"
@@ -68,6 +95,64 @@ static void session_render_fight(Session *sesh, Rcx *rcx) {
       "\r\n  }"
       "\r\n  .enemy-row {"
       "\r\n    flex-direction: row-reverse;"
+      "\r\n  }"
+      "\r\n  .combatant {"
+      "\r\n    display: flex;"
+      "\r\n    flex-direction: column;"
+      "\r\n    align-items: center;"
+      "\r\n    .hp-bar {"
+      "\r\n      width: 4rem;"
+      "\r\n      height: 0.4rem;"
+      "\r\n      border-radius: 0.2rem;"
+      "\r\n      border: 0.075rem solid var(--fg);"
+      "\r\n      &::after {"
+      "\r\n        width: var(--starting-hp);"
+      "\r\n        background-color: var(--starting-color);"
+      "\r\n        height: 100%%;"
+      "\r\n        display: block;"
+      "\r\n        content: \"\";"
+      "\r\n      }"
+      "\r\n    }"
+      "\r\n    .combatant-image {"
+      "\r\n      width: 5rem;"
+      "\r\n    }"
+      "\r\n  }"
+      "\r\n}"
+
+      "\r\n@media (prefers-color-scheme: dark) {"
+      "\r\n  .combatant-image {"
+      "\r\n    filter: invert(1);"
+      // Ei looks good either way
+      "\r\n    &[src=\"assets/Ei.svg\"] { filter: revert; }"
+      "\r\n  }"
+      "\r\n}"
+    );
+
+    {
+      float enemy_hp = (float)(sesh->enemy.hp) / (float)(sesh->enemy.hp_max);
+      fprintf(rcx->css,
+        ".enemy-row { --starting-hp: %d%%; --starting-color: %s; }",
+        (int)(enemy_hp * 100.0f),
+        hp_color_levels[(int)floorf(enemy_hp * (COUNT(hp_color_levels) - 1))]
+      );
+
+      float player_hp = (float)(sesh->player.hp) / (float)(sesh->player.hp_max);
+      fprintf(rcx->css,
+        ".player-row { --starting-hp: %d%%; --starting-color: %s; }",
+        (int)(player_hp * 100.0f),
+        hp_color_levels[(int)floorf(player_hp * (COUNT(hp_color_levels) - 1))]
+      );
+    }
+
+  }
+
+  if (action.kind == FightActionKind_Turn) {
+    #define ATTACK_DIST "8.5rem"
+
+    fprintf(rcx->css,
+      "\r\n.combatant-board {"
+      "\r\n  .combatant > .hp-bar::after {"
+      "\r\n    animation: 0.2s var(--ouch-delay) var(--ouch-hp-frames) forwards;"
       "\r\n  }"
       "\r\n  --attack-duration: 0.5s;"
       "\r\n  --attack-timing: cubic-bezier(0.42, 0, 1, 1);"
@@ -95,28 +180,6 @@ static void session_render_fight(Session *sesh, Rcx *rcx) {
       "\r\n    animation-name:             var(--attack-frames), var(--ouch-frames);"
       "\r\n    animation-composition: accumulate;"
       "\r\n  }"
-      "\r\n  .combatant {"
-      "\r\n    display: flex;"
-      "\r\n    flex-direction: column;"
-      "\r\n    align-items: center;"
-      "\r\n    .hp-bar {"
-      "\r\n      width: 4rem;"
-      "\r\n      height: 0.4rem;"
-      "\r\n      border-radius: 0.2rem;"
-      "\r\n      border: 0.075rem solid var(--fg);"
-      "\r\n      &::after {"
-      "\r\n        animation: 0.2s var(--ouch-delay) var(--ouch-hp-frames) forwards;"
-      "\r\n        width: 100%%;"
-      "\r\n        height: 100%%;"
-      "\r\n        display: block;"
-      "\r\n        content: \"\";"
-      "\r\n        background-color: lightgreen;"
-      "\r\n      }"
-      "\r\n    }"
-      "\r\n    .combatant-image {"
-      "\r\n      width: 5rem;"
-      "\r\n    }"
-      "\r\n  }"
       "\r\n}"
 
       "\r\n@keyframes player-attack {"
@@ -134,29 +197,35 @@ static void session_render_fight(Session *sesh, Rcx *rcx) {
       "\r\n  from { translate: 0; }"
       "\r\n  to { translate: 0.65rem -0.6175rem; }"
       "\r\n}"
-      "\r\n@keyframes enemy-ouch-hp {"
-      "\r\n  from { width: 100%%; background-color: lightgreen; }"
-      "\r\n  to { width: 20%%; background-color: red; }"
-      "\r\n}"
       "\r\n@keyframes player-ouch {"
       "\r\n  from { translate: 0; }"
       "\r\n  to { translate: -0.65rem 0.6175rem; }"
       "\r\n}"
-      "\r\n@keyframes player-ouch-hp {"
-      "\r\n  from { width: 100%%; background-color: lightgreen; }"
-      "\r\n  to { width: 50%%; background-color: yellow; }"
-      "\r\n}"
-
-      "\r\n@media (prefers-color-scheme: dark) {"
-      "\r\n  .combatant-image {"
-      "\r\n    filter: invert(1);"
-      // Ei looks good either way
-      "\r\n    &[src=\"assets/Ei.svg\"] { filter: revert; }"
-      "\r\n  }"
-      "\r\n}"
     );
+    #undef ATTACK_DIST
+
+    char *frame_names[] = { "enemy-ouch-hp", "player-ouch-hp" };
+    FightActionTurn *turns[] =  { &action.turn.enemy, &action.turn.player };
+    for (size_t i = 0; i < COUNT(frame_names); i++) {
+      fprintf(rcx->css, "\r\n@keyframes %s {", frame_names[i]);
+
+      float from = (float)(turns[i]->hp_from) / (float)(turns[i]->hp_max);
+      fprintf(rcx->css,
+        "\r\n  from { width: %d%%; background-color: %s; }",
+        (int)(from * 100.0f),
+        hp_color_levels[(int)floorf(from * (COUNT(hp_color_levels) - 1))]
+      );
+
+      float to = (float)(turns[i]->hp_to) / (float)(turns[i]->hp_max);
+      fprintf(rcx->css,
+        "\r\n  to { width: %d%%; background-color: %s; }",
+        (int)(to * 100.0f),
+        hp_color_levels[(int)floorf(to * (COUNT(hp_color_levels) - 1))]
+      );
+
+      fprintf(rcx->css, "\r\n}");
+    }
   }
-#undef ATTACK_DIST
 
   /* action bar */
   {
@@ -198,7 +267,12 @@ static void session_render_fight(Session *sesh, Rcx *rcx) {
 
 }
 
-static void session_render(Session *sesh, char **page, size_t *page_len) {
+static void session_render(
+  Session *sesh,
+  char *path,
+  char **page,
+  size_t *page_len
+) {
 
   char *css_buf = NULL;
   size_t css_buf_len = 0;
@@ -250,7 +324,39 @@ static void session_render(Session *sesh, char **page, size_t *page_len) {
   FILE *body = open_memstream(&body_buf, &body_buf_len);
 
   Rcx rcx = { .body = body, .css = css };
-  session_render_fight(sesh, &rcx);
+
+  {
+    FightAction action = { FightActionKind_None };
+    if (strcmp(path, "/attack0") == 0) {
+      hp_t player_dmg = 2;
+      hp_t enemy_dmg = 1;
+      hp_t player_hp_after = MAX(sesh->player.hp - enemy_dmg, 0);
+      hp_t enemy_hp_after = MAX(sesh->enemy.hp - player_dmg, 0);
+
+      action = (FightAction) {
+        .kind = FightActionKind_Turn,
+        .turn = {
+          .player = {
+            .hp_from = sesh->player.hp,
+            .hp_to = player_hp_after,
+            .hp_max = sesh->player.hp_max,
+          },
+          .enemy = {
+            .hp_from = sesh->enemy.hp,
+            .hp_to = enemy_hp_after,
+            .hp_max = sesh->enemy.hp_max,
+          },
+        }
+      };
+    }
+
+    session_render_fight(sesh, &rcx, action);
+
+    if (action.kind == FightActionKind_Turn) {
+      sesh->player.hp = action.turn.player.hp_to;
+      sesh->enemy.hp = action.turn.enemy.hp_to;
+    }
+  }
 
   fclose(css), fclose(body);
   FILE *out = open_memstream(page, page_len);

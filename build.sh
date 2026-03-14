@@ -14,8 +14,8 @@ flags="\
  -Wno-overlength-strings \
 "
 
-gcc $flags asset_pipeline.c
-./a.out
+# gcc $flags asset_pipeline.c
+# ./a.out
 
-gcc $flags page.c
-./a.out
+gcc $flags page.c -lm
+# ./a.out

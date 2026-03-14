@@ -86,6 +86,8 @@ static int server_init(Server *server) {
         .content = content,
       };
     }
+
+    closedir(fd);
   }
 
   if (server->host_fd < 0) {
@@ -276,34 +278,41 @@ static int server_http_respond(Server *server, Request *r) {
   }
 
   {
+    bool needs_new_cookie = false;
     if (cookie == 0 || cookie > server->session_count) {
-      size_t n = server->session_count++;
+      strcpy(path, "/");
+      needs_new_cookie = true;
+
+      cookie = ++server->session_count;
       server->sessions = reallocarray(
         server->sessions,
         server->session_count,
         sizeof(server->sessions[0])
       );
-      session_init(server->sessions + n, server->session_count);
+      session_init(server->sessions + (cookie - 1), server->session_count);
     }
     Session *sesh = server->sessions + (cookie - 1);
 
     char *page = NULL;
     size_t page_len = 0;
-    session_render(sesh, &page, &page_len);
+    session_render(sesh, path, &page, &page_len);
 
     FILE *tmp = open_memstream(&r->res.buf, &r->res.buf_len);
-    fprintf(tmp, "HTTP/1.0 200 OK\r\n");
-    fprintf(tmp, "Content-Length: %lu\r\n", page_len - 2);
-    fprintf(tmp, "Connection: close\r\n");
-    fprintf(tmp, "Content-Type: text/html; charset=utf-8\r\n");
-    if (cookie == 0)
+    if (needs_new_cookie)
       fprintf(
         tmp,
+        "HTTP/1.0 302 OK\r\n"
+        "Location: /partywipe/\r\n"
         "Set-Cookie: __Http-Sesh=%lu; "
           "HttpOnly; Secure; "
           "SameSite=Strict;\r\n",
         sesh->id
       );
+    else
+      fprintf(tmp, "HTTP/1.0 200 OK\r\n");
+    fprintf(tmp, "Content-Length: %lu\r\n", page_len - 2);
+    fprintf(tmp, "Connection: close\r\n");
+    fprintf(tmp, "Content-Type: text/html; charset=utf-8\r\n");
 
     fprintf(tmp, "\r\n");
 
