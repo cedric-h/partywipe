@@ -149,8 +149,15 @@ static void session_render_fight(Session *sesh, Rcx *rcx, FightAction action) {
 
   }
 
+  bool enemy_died = false;
+
   if (action.kind == FightActionKind_Turn) {
+    enemy_died = action.turn.enemy.hp_to == 0;
+
     #define ATTACK_DIST "8.5rem"
+    #define TURN_DURATION "2.0s"
+    #define OUCH_DELAY "0.5s"
+    #define ANIM_DELAY "0.2s"
 
     fprintf(rcx->css,
       "\r\n.combatant-board {"
@@ -158,23 +165,32 @@ static void session_render_fight(Session *sesh, Rcx *rcx, FightAction action) {
       "\r\n    animation: 0.2s var(--ouch-delay) var(--ouch-hp-frames) forwards;"
       "\r\n  }"
       "\r\n  --attack-duration: 0.5s;"
+      "\r\n  --ouch-duration: 0.2s;"
       "\r\n  --attack-timing: cubic-bezier(0.42, 0, 1, 1);"
       "\r\n  .player-row {"
-      "\r\n    --attack-delay: 0.2s;"
+    );
+    if (enemy_died) /* if you are dead, you are not real and you can not hurt me */
+      fprintf(rcx->css, "\r\n  --ouch-duration: 0.0s;");
+    fprintf(rcx->css,
+      "\r\n    --attack-delay: "ANIM_DELAY";"
       "\r\n    --attack-frames: player-attack;"
-      "\r\n    --ouch-delay: 2.5s;"
+      "\r\n    --ouch-delay: calc("TURN_DURATION" + "OUCH_DELAY");"
       "\r\n    --ouch-frames: player-ouch;"
       "\r\n    --ouch-hp-frames: player-ouch-hp;"
       "\r\n  }"
       "\r\n  .enemy-row {"
-      "\r\n    --attack-delay: 2.0s;"
+    );
+    if (enemy_died)
+      fprintf(rcx->css, "\r\n  --attack-duration: 0.0s;");
+    fprintf(rcx->css,
+      "\r\n    --attack-delay: "TURN_DURATION";"
       "\r\n    --attack-frames: enemy-attack;"
-      "\r\n    --ouch-delay: 0.7s;"
+      "\r\n    --ouch-delay: calc("ANIM_DELAY" + "OUCH_DELAY");"
       "\r\n    --ouch-frames: enemy-ouch;"
       "\r\n    --ouch-hp-frames: enemy-ouch-hp;"
       "\r\n  }"
       "\r\n  .active {" /*                               attack, ouch */
-      "\r\n    animation-duration:       var(--attack-duration), 0.2s;"
+      "\r\n    animation-duration:       var(--attack-duration), var(--ouch-duration);"
       "\r\n    animation-delay:             var(--attack-delay), var(--ouch-delay);"
       "\r\n    animation-timing-function:  var(--attack-timing), ease-out;"
       "\r\n    animation-iteration-count:                     2, 2;"
@@ -205,7 +221,6 @@ static void session_render_fight(Session *sesh, Rcx *rcx, FightAction action) {
       "\r\n  to { translate: -0.65rem 0.6175rem; }"
       "\r\n}"
     );
-    #undef ATTACK_DIST
 
     char *frame_names[] = { "enemy-ouch-hp", "player-ouch-hp" };
     FightActionTurn *turns[] =  { &action.turn.enemy, &action.turn.player };
@@ -228,6 +243,25 @@ static void session_render_fight(Session *sesh, Rcx *rcx, FightAction action) {
 
       fprintf(rcx->css, "\r\n}");
     }
+
+    if (enemy_died) {
+      fprintf(rcx->css,
+        "\r\n.combatant-board {"
+        "\r\n  .enemy-row > .combatant:has(.active) {"
+        "\r\n    animation: 0.35s "TURN_DURATION" enemy-death-frames forwards;"
+        "\r\n  }"
+        "\r\n}"
+        "\r\n@keyframes enemy-death-frames {"
+        "\r\n  from { translate: 0; }"
+        "\r\n  to { translate: 6rem; }"
+        "\r\n}"
+      );
+    }
+
+    #undef ATTACK_DIST
+    #undef TURN_DURATION
+    #undef OUCH_DELAY
+    #undef ANIM_DELAY
   }
 
   /* action bar */
@@ -253,19 +287,28 @@ static void session_render_fight(Session *sesh, Rcx *rcx, FightAction action) {
       "\r\n}"
     );
 
-    fprintf(rcx->body,
-      "\r\n<div class=\"action-bar\">"
-      "\r\n  <a href=\"attack0\" class=\"action-button\">"
-      "\r\n    headbutt"
-      "\r\n  </a>"
-      "\r\n  <a class=\"action-button disabled\">"
-      "\r\n    swipe"
-      "\r\n  </a>"
-      "\r\n  <a href=\"inventory\" class=\"action-button\">"
-      "\r\n    inventory"
-      "\r\n  </a>"
-      "\r\n</div>"
-    );
+    if (enemy_died)
+      fprintf(rcx->body,
+        "\r\n<div class=\"action-bar\">"
+        "\r\n  <a href=\"continue\" class=\"action-button\">"
+        "\r\n    continue"
+        "\r\n  </a>"
+        "\r\n</div>"
+      );
+    else
+      fprintf(rcx->body,
+        "\r\n<div class=\"action-bar\">"
+        "\r\n  <a href=\"attack0\" class=\"action-button\">"
+        "\r\n    headbutt"
+        "\r\n  </a>"
+        "\r\n  <a class=\"action-button disabled\">"
+        "\r\n    swipe"
+        "\r\n  </a>"
+        "\r\n  <a href=\"inventory\" class=\"action-button\">"
+        "\r\n    inventory"
+        "\r\n  </a>"
+        "\r\n</div>"
+      );
   }
 
 }
@@ -331,10 +374,13 @@ static void session_render(
   {
     FightAction action = { FightActionKind_None };
     if (strcmp(path, "/attack0") == 0) {
-      hp_t player_dmg = 2;
+      hp_t player_dmg = 4;
       hp_t enemy_dmg = 1;
-      hp_t player_hp_after = MAX(sesh->player.hp - enemy_dmg, 0);
+      hp_t player_hp_after = sesh->player.hp;
       hp_t enemy_hp_after = MAX(sesh->enemy.hp - player_dmg, 0);
+
+      if (enemy_hp_after > 0)
+        player_hp_after = MAX(sesh->player.hp - enemy_dmg, 0);
 
       action = (FightAction) {
         .kind = FightActionKind_Turn,
