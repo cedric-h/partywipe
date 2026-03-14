@@ -58,9 +58,11 @@ static void session_render_fight(Session *sesh, Rcx *rcx, FightAction action) {
   (void) sesh;
 
   char *hp_color_levels[] = {
-    "red",
-    "yellow",
-    "lightgreen",
+    "hsl(2deg 73.44% 74.9%)",
+    "hsl(37deg 73.44% 74.9%)",
+    "hsl(55deg 73.44% 74.9%)",
+    "hsl(80deg 73.44% 74.9%)",
+    "hsl(110deg 73.44% 74.9%)",
   };
 
   /* combatants */
@@ -108,6 +110,7 @@ static void session_render_fight(Session *sesh, Rcx *rcx, FightAction action) {
       "\r\n      &::after {"
       "\r\n        width: var(--starting-hp);"
       "\r\n        background-color: var(--starting-color);"
+      "\r\n        border-radius: 0.125rem;"
       "\r\n        height: 100%%;"
       "\r\n        display: block;"
       "\r\n        content: \"\";"
